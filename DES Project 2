@@ -1,0 +1,82 @@
+Create table `advance-anvil-324005.State_abbreviations.state_cases_deaths` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+) as
+(SELECT state,sum(confirmed_cases) as cases, sum(deaths) as deaths
+FROM `bigquery-public-data.covid19_usafacts.summary` where date in (
+    select max(date) from `bigquery-public-data.covid19_usafacts.summary`
+)
+group by state);
+
+Create table `advance-anvil-324005.State_abbreviations.State_Abbre` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+) as
+(SELECT string_field_0 as state, string_field_1 as abb
+FROM `advance-anvil-324005.State_abbreviations.State_Abb`
+);
+
+Create table `advance-anvil-324005.State_abbreviations.State_covid` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+) as
+(select 
+`advance-anvil-324005.State_abbreviations.State_Abbre`.state,
+`advance-anvil-324005.State_abbreviations.state_cases_deaths`.cases,
+`advance-anvil-324005.State_abbreviations.state_cases_deaths`.deaths
+from `advance-anvil-324005.State_abbreviations.State_Abbre` 
+inner join `advance-anvil-324005.State_abbreviations.state_cases_deaths`
+on `advance-anvil-324005.State_abbreviations.State_Abbre`.abb = `advance-anvil-324005.State_abbreviations.state_cases_deaths`.state);
+
+
+Create table `advance-anvil-324005.State_abbreviations.Pop_table` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+) as
+(select 
+string_field_0 as state,
+int64_field_10 as pop_2019,
+from `advance-anvil-324005.State_abbreviations.Population`)
+
+Create table `advance-anvil-324005.State_abbreviations.State_prop` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+  )  as
+(select 
+`advance-anvil-324005.State_abbreviations.Pop_table`.state,
+`advance-anvil-324005.State_abbreviations.State_covid`.cases/`advance-anvil-324005.State_abbreviations.Pop_table`.pop_2019 as Cases_prop,
+`advance-anvil-324005.State_abbreviations.State_covid`.deaths/`advance-anvil-324005.State_abbreviations.Pop_table`.pop_2019 as Deaths_prop,
+from `advance-anvil-324005.State_abbreviations.Pop_table` join `advance-anvil-324005.State_abbreviations.State_covid` 
+on `advance-anvil-324005.State_abbreviations.Pop_table`.state = `advance-anvil-324005.State_abbreviations.State_covid`.state)
+
+Create table `advance-anvil-324005.State_abbreviations.Vaccinations_tot` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+  )  as
+select location, people_fully_vaccinated_per_hundred as Vaccinations_prop 
+from `advance-anvil-324005.Vaccinations.US_Vaccinations_State`
+where date in (select max(date) from `advance-anvil-324005.Vaccinations.US_Vaccinations_State`)
+
+
+Create table `advance-anvil-324005.State_abbreviations.Vaccinations_Deaths` 
+OPTIONS(
+  expiration_timestamp=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+  )  as
+select `advance-anvil-324005.State_abbreviations.Vaccinations_tot`.location,
+`advance-anvil-324005.State_abbreviations.Vaccinations_tot`.Vaccinations_prop,
+`advance-anvil-324005.State_abbreviations.State_prop`.Cases_prop,
+`advance-anvil-324005.State_abbreviations.State_prop`.Deaths_prop,
+from `advance-anvil-324005.State_abbreviations.Vaccinations_tot` inner join `advance-anvil-324005.State_abbreviations.State_prop`
+on `advance-anvil-324005.State_abbreviations.Vaccinations_tot`.location = `advance-anvil-324005.State_abbreviations.State_prop`.state
+
+
+select * from `advance-anvil-324005.State_abbreviations.Vaccinations_Deaths`
+where Deaths_prop > 
+(select avg(Deaths_prop) from `advance-anvil-324005.State_abbreviations.Vaccinations_Deaths`)
+and 
+Vaccinations_prop <
+(select avg(Vaccinations_prop) from `advance-anvil-324005.State_abbreviations.Vaccinations_Deaths`)
+order by Deaths_prop desc
+
+
+
